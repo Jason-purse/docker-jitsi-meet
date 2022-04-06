@@ -150,7 +150,7 @@ VirtualHost "{{ .Env.XMPP_DOMAIN }}"
         "auth_cyrus";
         {{end}}
     }
-    -- 需要根据它 配置 break-out-room  .. 等其他room / lobby_room
+    -- 需要根据它 配置
     main_muc = "{{ .Env.XMPP_MUC_DOMAIN }}"
 
     {{ if $ENABLE_LOBBY }}

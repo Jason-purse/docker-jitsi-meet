@@ -2,7 +2,7 @@ FROM debian:bullseye-slim
 
 ARG JITSI_RELEASE=stable
 ENV S6_BEHAVIOUR_IF_STAGE2_FAILS=2
-# 通过使用frep 原型 进行从环境变量进行模板渲染 .... 使用Go语言 text-template 进行模板渲染 // https://github.com/subchen/frep
+# 通过使用frep 原型 进行从环境变量进行模板渲染 .... 使用Go语言 text-template 进行模板渲染
 ADD https://github.com/jitsi/tpl/releases/download/v1.0.1/tpl-linux-amd64 /usr/bin/tpl
 COPY rootfs /
 

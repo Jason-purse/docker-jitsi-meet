@@ -5,13 +5,27 @@ FROM ${JITSI_REPO}/base:${BASE_TAG} as builder
 
 RUN apt-dpkg-wrap apt-get update && \
     apt-dpkg-wrap apt-get install -y \
+<<<<<<< HEAD
+=======
+      build-essential \
+>>>>>>> b0617c0fe35cdebd5474d8b085d0432c69e708c2
       lua5.2 \
       liblua5.2-dev \
       libsasl2-dev \
       libssl-dev \
+<<<<<<< HEAD
       luarocks \
       git \
       gcc && \
+=======
+      libreadline-dev \
+      git \
+      unzip \
+      wget && \
+    mkdir /tmp/luarocks && \
+    wget -qO - https://luarocks.github.io/luarocks/releases/luarocks-3.8.0.tar.gz | tar xfz - --strip-components 1 -C /tmp/luarocks && \
+    cd /tmp/luarocks && ./configure && make && make install && cd - && \
+>>>>>>> b0617c0fe35cdebd5474d8b085d0432c69e708c2
     luarocks install cyrussasl 1.1.0-1 && \
     luarocks install net-url 0.9-1 && \
     luarocks install luajwtjitsi 2.0-0
@@ -32,7 +46,11 @@ RUN wget -qO /etc/apt/trusted.gpg.d/prosody.gpg https://prosody.im/files/prosody
     echo "deb http://packages.prosody.im/debian bullseye main" > /etc/apt/sources.list.d/prosody.list && \
     apt-dpkg-wrap apt-get update && \
     apt-dpkg-wrap apt-get install -y \
+<<<<<<< HEAD
       prosody \
+=======
+      prosody=0.11.13-1~bpo11+1 \
+>>>>>>> b0617c0fe35cdebd5474d8b085d0432c69e708c2
       libssl1.1 \
       libldap-common \
       sasl2-bin \

@@ -1,7 +1,5 @@
 ## stable-7001
 
-**IMPORTANT:** Starting with this release TCP has support has been removed from the JVB.
-
 Based on stable release 7001.
 
 * 6e0dd04 base: replace frep with tpl

@@ -1,5 +1,8 @@
+-- 启用认证 ??
 {{ $ENABLE_AUTH := .Env.ENABLE_AUTH | default "0" | toBool }}
+-- 游客 域
 {{ $ENABLE_GUEST_DOMAIN := and $ENABLE_AUTH (.Env.ENABLE_GUESTS | default "0" | toBool)}}
+-- 认证类型 / 默认是 internal
 {{ $AUTH_TYPE := .Env.AUTH_TYPE | default "internal" }}
 {{ $JWT_ASAP_KEYSERVER := .Env.JWT_ASAP_KEYSERVER | default "" }}
 {{ $JWT_ALLOW_EMPTY := .Env.JWT_ALLOW_EMPTY | default "0" | toBool }}
@@ -18,28 +21,33 @@
 {{ $DISABLE_POLLS := .Env.DISABLE_POLLS | default "false" | toBool -}}
 {{ $ENABLE_SUBDOMAINS := .Env.ENABLE_SUBDOMAINS | default "true" | toBool -}}
 
+-- 服务器管理员
 admins = {
     "{{ .Env.JICOFO_AUTH_USER }}@{{ .Env.XMPP_AUTH_DOMAIN }}",
     "{{ .Env.JVB_AUTH_USER }}@{{ .Env.XMPP_AUTH_DOMAIN }}"
 }
-
+-- 不限制的jids 取决于限速模块 	Set of JIDs exempt from limits (added in 0.12.0) https://prosody.im/doc/modules/mod_limits
 unlimited_jids = {
     "{{ .Env.JICOFO_AUTH_USER }}@{{ .Env.XMPP_AUTH_DOMAIN }}",
     "{{ .Env.JVB_AUTH_USER }}@{{ .Env.XMPP_AUTH_DOMAIN }}"
 }
-
+-- 插件路径
+-- 启动时查找 ...
 plugin_paths = { "/prosody-plugins/", "/prosody-plugins-custom" }
 
+-- muc mapper 域名base
 muc_mapper_domain_base = "{{ .Env.XMPP_DOMAIN }}";
+-- 前缀
 muc_mapper_domain_prefix = "{{ $XMPP_MUC_DOMAIN_PREFIX }}";
-
+-- http 默认主机
 http_default_host = "{{ .Env.XMPP_DOMAIN }}"
 
 {{ if .Env.TURN_CREDENTIALS }}
 external_service_secret = "{{.Env.TURN_CREDENTIALS}}";
 {{ end }}
-
+-- 可以看出 TURN 服务器是一个外部服务
 {{ if or .Env.TURN_HOST .Env.TURNS_HOST }}
+-- 配置外部服务
 external_services = {
   {{ if .Env.TURN_HOST }}
      { type = "turn", host = "{{ .Env.TURN_HOST }}", port = {{ $TURN_PORT }}, transport = "tcp", secret = true, ttl = 86400, algorithm = "turn" }
@@ -116,6 +124,7 @@ VirtualHost "{{ .Env.XMPP_DOMAIN }}"
         "bosh";
         {{ if $ENABLE_XMPP_WEBSOCKET }}
         "websocket";
+        -- XMPP 有一个可选的扩展（XEP-0198：流管理），当客户端和服务器都支持它时，它可以允许客户端恢复断开的会话，并防止消息丢失。
         "smacks"; -- XEP-0198: Stream Management
         {{ end }}
         "pubsub";
@@ -141,7 +150,7 @@ VirtualHost "{{ .Env.XMPP_DOMAIN }}"
         "auth_cyrus";
         {{end}}
     }
-
+    -- 需要根据它 配置
     main_muc = "{{ .Env.XMPP_MUC_DOMAIN }}"
 
     {{ if $ENABLE_LOBBY }}
@@ -218,7 +227,7 @@ Component "{{ .Env.XMPP_MUC_DOMAIN }}" "muc"
         "polls";
         {{ end -}}
         {{ if $ENABLE_SUBDOMAINS -}}
-        "muc_domain_mapper";
+            "muc_domain_mapper";
         {{ end -}}
     }
     muc_room_cache_size = 1000

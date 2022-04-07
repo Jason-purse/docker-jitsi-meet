@@ -1,3 +1,4 @@
 #!/usr/bin/with-contenv bash
+# 此目录会被s6-overlay 复制并监听 .... 将用户服务（/etc/services.d）复制到s6正在运行其监视的文件夹中，并向它发出信号，以便它能够正确地开始监视它们。
 exec s6-setuidgid prosody prosody --config /config/prosody.cfg.lua
 

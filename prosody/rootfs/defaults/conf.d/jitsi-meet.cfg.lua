@@ -61,31 +61,42 @@ external_services = {
 };
 {{ end }}
 
+-- 启动认证 , 并且
 {{ if and $ENABLE_AUTH (eq $AUTH_TYPE "jwt") .Env.JWT_ACCEPTED_ISSUERS }}
 asap_accepted_issuers = { "{{ join "\",\"" (splitList "," .Env.JWT_ACCEPTED_ISSUERS) }}" }
 {{ end }}
-
+--
 {{ if and $ENABLE_AUTH (eq $AUTH_TYPE "jwt") .Env.JWT_ACCEPTED_AUDIENCES }}
 asap_accepted_audiences = { "{{ join "\",\"" (splitList "," .Env.JWT_ACCEPTED_AUDIENCES) }}" }
 {{ end }}
 
+-- bosh 配置
+-- 即使未加密 也认为是安全的,否则如果为false,那么未加密的时候 不可能连接 ...
 consider_bosh_secure = true;
 
 -- Deprecated in 0.12
 -- https://github.com/bjc/prosody/commit/26542811eafd9c708a130272d7b7de77b92712de
+-- XMPP 跨域为 公共IP
 {{ $XMPP_CROSS_DOMAINS := $PUBLIC_URL }}
 {{ $XMPP_CROSS_DOMAIN := .Env.XMPP_CROSS_DOMAIN | default "" }}
+-- 如果等于 True
 {{ if eq $XMPP_CROSS_DOMAIN "true"}}
+-- websocket 允许跨域
 cross_domain_websocket = true
+-- bosh 允许跨域
 cross_domain_bosh = true
 {{ else }}
 {{ if not (eq $XMPP_CROSS_DOMAIN "false") }}
+    -- 否则如果为非false
+    -- 手动处理需要跨域的列表,这里XMPP_CROSS_DOMAIN 必然是一个逗号分隔的列表
+    -- 至少允许PUBLIC_URL 服务器允许跨域...
   {{ $XMPP_CROSS_DOMAINS = list $PUBLIC_URL (print "https://" .Env.XMPP_DOMAIN) .Env.XMPP_CROSS_DOMAIN | join "," }}
 {{ end }}
+-- 针对于特定的域来说 允许跨域 ...
 cross_domain_websocket = { "{{ join "\",\"" (splitList "," $XMPP_CROSS_DOMAINS) }}" }
 cross_domain_bosh = { "{{ join "\",\"" (splitList "," $XMPP_CROSS_DOMAINS) }}" }
 {{ end }}
-
+-- 设置虚拟主机 ...
 VirtualHost "{{ .Env.XMPP_DOMAIN }}"
 {{ if $ENABLE_AUTH }}
   {{ if eq $AUTH_TYPE "jwt" }}
@@ -100,6 +111,7 @@ VirtualHost "{{ .Env.XMPP_DOMAIN }}"
     authentication = "cyrus"
     cyrus_application_name = "xmpp"
     allow_unencrypted_plain_auth = true
+    -- 这种认证类型不明白 ...
   {{ else if eq $AUTH_TYPE "matrix" }}
     authentication = "matrix_user_verification"
     app_id = "{{ $MATRIX_UVS_ISSUER }}"
@@ -110,10 +122,13 @@ VirtualHost "{{ .Env.XMPP_DOMAIN }}"
     {{ if $MATRIX_UVS_SYNC_POWER_LEVELS }}
     uvs_sync_power_levels = true
     {{ end }}
+  -- 默认形式  内部hash
   {{ else if eq $AUTH_TYPE "internal" }}
     authentication = "internal_hashed"
   {{ end }}
 {{ else }}
+  -- 否则匿名
+  -- 很多都是jitsi 自己的组件
     authentication = "jitsi-anonymous"
 {{ end }}
     ssl = {
@@ -127,9 +142,11 @@ VirtualHost "{{ .Env.XMPP_DOMAIN }}"
         -- XMPP 有一个可选的扩展（XEP-0198：流管理），当客户端和服务器都支持它时，它可以允许客户端恢复断开的会话，并防止消息丢失。
         "smacks"; -- XEP-0198: Stream Management
         {{ end }}
+        -- 收发 ...
         "pubsub";
         "ping";
         "speakerstats";
+        -- 会议时常
         "conference_duration";
         {{ if or .Env.TURN_HOST .Env.TURNS_HOST }}
         "external_services";
@@ -147,7 +164,7 @@ VirtualHost "{{ .Env.XMPP_DOMAIN }}"
         "{{ join "\";\n\"" (splitList "," .Env.XMPP_MODULES) }}";
         {{ end }}
         {{ if and $ENABLE_AUTH (eq $AUTH_TYPE "ldap") }}
-        "auth_cyrus";
+            "auth_cyrus";
         {{end}}
     }
     -- 需要根据它 配置
@@ -170,16 +187,16 @@ VirtualHost "{{ .Env.XMPP_DOMAIN }}"
     {{ if $ENABLE_AV_MODERATION }}
     av_moderation_component = "avmoderation.{{ .Env.XMPP_DOMAIN }}"
     {{ end }}
-
+    -- 客户端 服务器端的连接  不需要加密 ..
     c2s_require_encryption = false
-
+-- 游客域 ...
 {{ if $ENABLE_GUEST_DOMAIN }}
 VirtualHost "{{ .Env.XMPP_GUEST_DOMAIN }}"
     authentication = "jitsi-anonymous"
 
     c2s_require_encryption = false
 {{ end }}
-
+-- 认证域
 VirtualHost "{{ .Env.XMPP_AUTH_DOMAIN }}"
     ssl = {
         key = "/config/certs/{{ .Env.XMPP_AUTH_DOMAIN }}.key";
@@ -188,16 +205,18 @@ VirtualHost "{{ .Env.XMPP_AUTH_DOMAIN }}"
     modules_enabled = {
         "limits_exception";
     }
+    -- 验证内部hashed
     authentication = "internal_hashed"
-
+-- 记录器的域
 {{ if .Env.XMPP_RECORDER_DOMAIN }}
 VirtualHost "{{ .Env.XMPP_RECORDER_DOMAIN }}"
     modules_enabled = {
+    -- XMPP Ping reply support
       "ping";
     }
     authentication = "internal_hashed"
 {{ end }}
-
+-- 使用插件muc (创建一个聊天室)
 Component "{{ .Env.XMPP_INTERNAL_MUC_DOMAIN }}" "muc"
     storage = "memory"
     modules_enabled = {
@@ -206,11 +225,27 @@ Component "{{ .Env.XMPP_INTERNAL_MUC_DOMAIN }}" "muc"
         "{{ join "\";\n\"" (splitList "," .Env.XMPP_INTERNAL_MUC_MODULES) }}";
         {{ end -}}
     }
+    -- 限制房间的产生
+    -- 仅仅只有管理员才能创建房间
     restrict_room_creation = true
+    -- 锁 ??
+    -- false,表示房间无需在配置之后使用
+    -- 将此设置设置为 false 可能会破坏一些希望能够“创建”房间的客户端。它还引入了一种竞争条件，在这种情况下，其他用户可能会在配置为私人房间之前进入该房间。
     muc_room_locking = false
+    --
     muc_room_default_public_jids = true
 
+--[[      muc_room_default_public = true // 公开
+           muc_room_default_persistent = false // 持久化
+           muc_room_default_members_only = false // 仅成员
+           muc_room_default_moderated = false // 控制
+           muc_room_default_public_jids = false // 公开jid
+           muc_room_default_change_subject = false // 改变主题
+           muc_room_default_history_length = 20 // 历史记录keep-alive
+           muc_room_default_language = "en" ]] // 语言
+
 Component "{{ .Env.XMPP_MUC_DOMAIN }}" "muc"
+    -- 这个在内存中存储  测试环境 ..
     storage = "memory"
     modules_enabled = {
         "muc_meeting_id";
@@ -223,26 +258,34 @@ Component "{{ .Env.XMPP_MUC_DOMAIN }}" "muc"
         {{ if and $ENABLE_AUTH (eq $AUTH_TYPE "matrix") $MATRIX_UVS_SYNC_POWER_LEVELS -}}
         "matrix_power_sync";
         {{ end -}}
+
         {{ if not $DISABLE_POLLS -}}
         "polls";
         {{ end -}}
+        -- 子域映射组件
         {{ if $ENABLE_SUBDOMAINS -}}
             "muc_domain_mapper";
         {{ end -}}
     }
+    -- 内存中房间的个数为 1000
     muc_room_cache_size = 1000
+    -- false
     muc_room_locking = false
+    -- 默认公开jid ??
     muc_room_default_public_jids = true
 
+-- 增加一个组件(服务),也可以说自定义的虚拟主机 ...
 Component "focus.{{ .Env.XMPP_DOMAIN }}" "client_proxy"
+    -- 目标地址 用户@HOST
+    -- 自己写的组件  支持此属性
     target_address = "{{ .Env.JICOFO_AUTH_USER }}@{{ .Env.XMPP_AUTH_DOMAIN }}"
-
+-- 演讲统计
 Component "speakerstats.{{ .Env.XMPP_DOMAIN }}" "speakerstats_component"
     muc_component = "{{ .Env.XMPP_MUC_DOMAIN }}"
-
+-- 会话时常
 Component "conferenceduration.{{ .Env.XMPP_DOMAIN }}" "conference_duration_component"
     muc_component = "{{ .Env.XMPP_MUC_DOMAIN }}"
-
+-- A/V 控制
 {{ if $ENABLE_AV_MODERATION }}
 Component "avmoderation.{{ .Env.XMPP_DOMAIN }}" "av_moderation_component"
     muc_component = "{{ .Env.XMPP_MUC_DOMAIN }}"
